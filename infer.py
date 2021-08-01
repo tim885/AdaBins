@@ -88,6 +88,16 @@ class InferenceHelper:
 
     @torch.no_grad()
     def predict_pil(self, pil_image, visualized=False):
+        """
+        Args:
+            pil_image (pil): a pil object of image with spatial size H and W
+            visualized (bool): whether output a pil object of predicted depth visualization
+
+        Returns:
+            Vector (float): a numpy vector with shape (N_BINS,). Depth bin centers in meters.
+            Tensor (float): a numpy tensor with shape (1, 1, H, W). Depth values in meters.
+            PIL object (optional): a pil object of predicted depth visualization
+        """
         # pil_image = pil_image.resize((640, 480))
         img = np.asarray(pil_image) / 255.
 
@@ -95,7 +105,7 @@ class InferenceHelper:
         bin_centers, pred = self.predict(img)
 
         if visualized:
-            viz = utils.colorize(torch.from_numpy(pred).unsqueeze(0), vmin=None, vmax=None, cmap='magma')
+            viz = utils.colorize(torch.from_numpy(pred).squeeze(0), vmin=None, vmax=None, cmap='magma')
             # pred = np.asarray(pred*1000, dtype='uint16')
             viz = Image.fromarray(viz)
             return bin_centers, pred, viz

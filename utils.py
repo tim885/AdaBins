@@ -47,7 +47,7 @@ class RunningAverageDict:
 
 
 def colorize(value, vmin=10, vmax=1000, cmap='magma_r'):
-    value = value.cpu().numpy()[0, :, :]
+    value = value.cpu().numpy()[0, :, :]  # (n x m)
     invalid_mask = value == -1
 
     # normalize
@@ -61,7 +61,7 @@ def colorize(value, vmin=10, vmax=1000, cmap='magma_r'):
     # squeeze last dim if it exists
     # value = value.squeeze(axis=0)
     cmapper = matplotlib.cm.get_cmap(cmap)
-    value = cmapper(value, bytes=True)  # (nxmx4)
+    value = cmapper(value, bytes=True)  # (n x m x 4)
     value[invalid_mask] = 255
     img = value[:, :, :3]
 
