@@ -23,7 +23,7 @@ from utils import RunningAverage, colorize
 
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "MDE-AdaBins"
-logging = True
+logging = False  # default: True
 
 
 def is_rank_zero(args):
@@ -173,8 +173,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
         ################################# Train loop ##########################################################
         if should_log: wandb.log({"Epoch": epoch}, step=step)
         for i, batch in tqdm(enumerate(train_loader), desc=f"Epoch: {epoch + 1}/{epochs}. Loop: Train",
-                             total=len(train_loader)) if is_rank_zero(
-                args) else enumerate(train_loader):
+                             total=len(train_loader)) if is_rank_zero(args) else enumerate(train_loader):
 
             optimizer.zero_grad()
 
@@ -229,6 +228,9 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                                              root=os.path.join(root, "checkpoints"))
                     best_loss = metrics['abs_rel']
                 model.train()
+
+            if args.debug is True:
+                if i == 30: break  # debug
                 #################################################################################################
 
     return model
@@ -293,10 +295,11 @@ def convert_arg_line_to_args(arg_line):
 if __name__ == '__main__':
 
     # Arguments
-    parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility', fromfile_prefix_chars='@',
-                                     conflict_handler='resolve')
+    parser = argparse.ArgumentParser(description='Training script. Default values of all arguments are recommended for reproducibility',
+                                     fromfile_prefix_chars='@', conflict_handler='resolve')
     parser.convert_arg_line_to_args = convert_arg_line_to_args
     parser.add_argument('--epochs', default=25, type=int, help='number of total epochs to run')
+    parser.add_argument('--debug', action='store_true', help='debug mode, only run through few batches')
     parser.add_argument('--n-bins', '--n_bins', default=80, type=int,
                         help='number of bins/buckets to divide depth range into')
     parser.add_argument('--lr', '--learning-rate', default=0.000357, type=float, help='max learning rate')
@@ -306,8 +309,8 @@ if __name__ == '__main__':
     parser.add_argument('--final-div-factor', '--final_div_factor', default=100, type=float,
                         help="final div factor for lr")
 
-    parser.add_argument('--bs', default=16, type=int, help='batch size')
-    parser.add_argument('--validate-every', '--validate_every', default=100, type=int, help='validation period')
+    parser.add_argument('--bs', default=4, type=int, help='batch size')  # default is 16
+    parser.add_argument('--validate-every', '--validate_every', default=6058, type=int, help='validate every n batches')
     parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
     parser.add_argument("--name", default="UnetAdaptiveBins")
     parser.add_argument("--norm", default="linear", type=str, help="Type of norm/competition for bin-widths",
@@ -322,12 +325,12 @@ if __name__ == '__main__':
     parser.add_argument("--notes", default='', type=str, help="Wandb notes")
     parser.add_argument("--tags", default='sweep', type=str, help="Wandb tags")
 
-    parser.add_argument("--workers", default=11, type=int, help="Number of workers for data loading")
+    parser.add_argument("--workers", default=4, type=int, help="Number of workers for data loading")
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
 
-    parser.add_argument("--data_path", default='../dataset/nyu/sync/', type=str,
+    parser.add_argument("--data_path", default='../Dataset/DenseDepthNYUDv2/data/', type=str,
                         help="path to dataset")
-    parser.add_argument("--gt_path", default='../dataset/nyu/sync/', type=str,
+    parser.add_argument("--gt_path", default='../Dataset/DenseDepthNYUDv2/data/', type=str,
                         help="path to dataset")
 
     parser.add_argument('--filenames_file',
@@ -348,9 +351,9 @@ if __name__ == '__main__':
                         action='store_true')
 
     parser.add_argument('--data_path_eval',
-                        default="../dataset/nyu/official_splits/test/",
+                        default="../Dataset/nyu_depth_v2/official_splits/test/",
                         type=str, help='path to the data for online evaluation')
-    parser.add_argument('--gt_path_eval', default="../dataset/nyu/official_splits/test/",
+    parser.add_argument('--gt_path_eval', default="../Dataset/nyu_depth_v2/official_splits/test/",
                         type=str, help='path to the groundtruth data for online evaluation')
     parser.add_argument('--filenames_file_eval',
                         default="./train_test_inputs/nyudepthv2_test_files_with_gt.txt",

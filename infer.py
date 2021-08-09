@@ -94,9 +94,9 @@ class InferenceHelper:
             visualized (bool): whether output a pil object of predicted depth visualization
 
         Returns:
-            Vector (float): a numpy vector with shape (N_BINS,). Depth bin centers in meters.
-            Tensor (float): a numpy tensor with shape (1, 1, H, W). Depth values in meters.
-            PIL object (optional): a pil object of predicted depth visualization
+            bin_centers (float): a numpy vector with shape (N_BINS,). Depth bin centers in meters.
+            pred (float): a numpy tensor with shape (1, 1, H, W). Depth values in meters.
+            viz (pil, optional): a pil object of predicted depth visualization
         """
         # pil_image = pil_image.resize((640, 480))
         img = np.asarray(pil_image) / 255.

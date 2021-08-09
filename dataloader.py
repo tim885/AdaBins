@@ -90,9 +90,15 @@ class DataLoadPreprocess(Dataset):
             if self.args.dataset == 'kitti' and self.args.use_right is True and random.random() > 0.5:
                 image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[3]))
                 depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[4]))
-            else:
-                image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[0]))
-                depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[1]))
+            else:  # nyuv2
+                # image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[0]))
+                # depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[1]))
+
+                # fit file paths in my file dir
+                scene_n = '{}_out'.format(sample_path.split()[0].split('/')[1])
+                sample_id = int(sample_path.split()[0].split('/')[2].replace('rgb_', '').replace('.jpg', '')) + 1
+                image_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.jpg'.format(sample_id))
+                depth_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.png'.format(sample_id))
 
             image = Image.open(image_path)
             depth_gt = Image.open(depth_path)

@@ -12,12 +12,28 @@ Official implementation of [Adabins: Depth Estimation using adaptive bins](https
 ## Installation
 ### Dependencies
 - pytorch >= 1.6
-- tqdm
+- [pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md)
+```bash
+conda install -c conda-forge tqdm
+```
 - matplotlib
 - scipy
+- wandb (for logging, optional) 
+
+**N.B.** 
+- wandb needs an account and log in before using: https://wandb.ai/site 
+
+
+### Data preparation
+
+## Train
+```bash
+CUDA_VISIBLE_DEVICES=0,1 python train.py 
+```
 
 ## Inference
-Move the downloaded weights to a directory of your choice (we will use "./pretrained/" here). You can then use the pretrained models like so:
+Move the downloaded weights to a directory of your choice (we will use "./pretrained/" here). 
+You can then use the pretrained models like so:
 
 ```python
 from models import UnetAdaptiveBins

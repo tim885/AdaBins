@@ -180,9 +180,9 @@ if __name__ == '__main__':
     parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
 
     parser.add_argument('--data_path_eval',
-                        default="../dataset/nyu/official_splits/test/",
+                        default="../Dataset/nyu_depth_v2/official_splits/test/",
                         type=str, help='path to the data for online evaluation')
-    parser.add_argument('--gt_path_eval', default="../dataset/nyu/official_splits/test/",
+    parser.add_argument('--gt_path_eval', default="../Dataset/nyu_depth_v2/official_splits/test/",
                         type=str, help='path to the groundtruth data for online evaluation')
     parser.add_argument('--filenames_file_eval',
                         default="./train_test_inputs/nyudepthv2_test_files_with_gt.txt",
