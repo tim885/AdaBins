@@ -1,4 +1,4 @@
---bs 16
+--bs 8
 --distributed
 --dataset nyu
 --lr 0.000357
@@ -12,8 +12,8 @@
 --norm linear
 --w_chamfer 0.1
 --root .
---data_path ../Dataset/DenseDepthNYUDv2/data/
---gt_path ../Dataset/DenseDepthNYUDv2/data/
+--data_path ../Dataset/nyu_depth_v2/sync/
+--gt_path ../Dataset/nyu_depth_v2/sync/
 --filenames_file ./train_test_inputs/nyudepthv2_train_files_with_gt.txt
 --input_height 416
 --input_width 544

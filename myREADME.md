@@ -13,9 +13,9 @@ Official implementation of [Adabins: Depth Estimation using adaptive bins](https
 ### Dependencies
 - pytorch >= 1.6
 - [pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md)
-```bash
-conda install -c conda-forge tqdm
-```
+    ```bash
+    conda install -c conda-forge tqdm
+    ```
 - matplotlib
 - scipy
 - wandb (for logging, optional) 
@@ -25,6 +25,7 @@ conda install -c conda-forge tqdm
 
 
 ### Data preparation
+- The data preparation of NYUDv2 dataset is same as [BTS](https://github.com/cogaplex-bts/bts).  
 
 ## Train
 ```bash
@@ -86,8 +87,13 @@ bin_centers, predicted_depth = infer_helper.predict_pil(img)
 
 # predict depths of images stored in a directory and store the predictions in 16-bit format in a given separate dir
 infer_helper.predict_dir("/path/to/input/dir/containing_only_images/", "path/to/output/dir/")
-
 ```
+
+## Evaluation
+```bash
+python evaluate.py args_test_nyu.txt --gpu 1
+```
+
 ## TODO:
 * Add instructions for Evaluation and Training.
 * Add Colab demo

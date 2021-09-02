@@ -118,9 +118,9 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     print(f"Training {experiment_name}")
 
     run_id = f"{dt.now().strftime('%d-%h_%H-%M')}-nodebs{args.bs}-tep{epochs}-lr{lr}-wd{args.wd}-{uuid.uuid4()}"
-    name = f"{experiment_name}_{run_id}"
+    name = f"{experiment_name}_{run_id}"  # saved model name
     should_write = ((not args.distributed) or args.rank == 0)
-    should_log = should_write and logging
+    should_log = should_write and logging  # if True, logging w/ wandb
     if should_log:
         tags = args.tags.split(',') if args.tags != '' else None
         if args.dataset != 'nyu':
@@ -328,9 +328,9 @@ if __name__ == '__main__':
     parser.add_argument("--workers", default=4, type=int, help="Number of workers for data loading")
     parser.add_argument("--dataset", default='nyu', type=str, help="Dataset to train on")
 
-    parser.add_argument("--data_path", default='../Dataset/DenseDepthNYUDv2/data/', type=str,
+    parser.add_argument("--data_path", default='../Dataset/nyu_depth_v2/sync/', type=str,
                         help="path to dataset")
-    parser.add_argument("--gt_path", default='../Dataset/DenseDepthNYUDv2/data/', type=str,
+    parser.add_argument("--gt_path", default='../Dataset/nyu_depth_v2/sync/', type=str,
                         help="path to dataset")
 
     parser.add_argument('--filenames_file',

@@ -8,6 +8,9 @@ import torch.nn as nn
 from PIL import Image
 from tqdm import tqdm
 
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')  # use matplotlib without gui support
+
 import model_io
 from dataloader import DepthDataLoader
 from models import UnetAdaptiveBins
@@ -56,7 +59,11 @@ def predict_tta(model, image, args):
     #     pred_lr = nn.functional.interpolate(pred_lr, depth.shape[-2:], mode='bilinear', align_corners=True)
     #     pred_lr = np.clip(pred_lr.cpu().numpy()[...,::-1], 10, 1000)/100.
     pred_lr = np.clip(pred_lr.cpu().numpy()[..., ::-1], args.min_depth, args.max_depth)
-    final = 0.5 * (pred + pred_lr)
+
+    # final = 0.5 * (pred + pred_lr)  # default, average of image and the flipped version
+    final = pred
+    # final = pred_lr  # try use the flipped version
+
     final = nn.functional.interpolate(torch.Tensor(final), image.shape[-2:], mode='bilinear', align_corners=True)
     return torch.Tensor(final)
 
@@ -67,7 +74,7 @@ def eval(model, test_loader, args, gpus=None, ):
     else:
         device = gpus[0]
 
-    if args.save_dir is not None:
+    if (args.save_dir is not None) and (not os.path.exists(args.save_dir)):
         os.makedirs(args.save_dir)
 
     metrics = RunningAverageDict()
@@ -81,14 +88,17 @@ def eval(model, test_loader, args, gpus=None, ):
         for batch in tqdm(sequential):
 
             image = batch['image'].to(device)
-            gt = batch['depth'].to(device)
-            final = predict_tta(model, image, args)
+            gt = batch['depth'].to(device)  # in meters
+            final = predict_tta(model, image, args)  # in meters
             final = final.squeeze().cpu().numpy()
 
             # final[final < args.min_depth] = args.min_depth
             # final[final > args.max_depth] = args.max_depth
             final[np.isinf(final)] = args.max_depth
             final[np.isnan(final)] = args.min_depth
+
+            gt = gt.squeeze().cpu().numpy()
+            valid_mask = np.logical_and(gt > args.min_depth, gt < args.max_depth)
 
             if args.save_dir is not None:
                 if args.dataset == 'nyu':
@@ -103,18 +113,26 @@ def eval(model, test_loader, args, gpus=None, ):
                 # rgb_path = os.path.join(rgb_dir, f"{impath}.png")
                 # tf.ToPILImage()(denormalize(image.squeeze().unsqueeze(0).cpu()).squeeze()).save(rgb_path)
 
+                # save predicted depth in millimeters
                 pred_path = os.path.join(args.save_dir, f"{impath}.png")
-                pred = (final * factor).astype('uint16')
+                pred = (final * factor).astype('uint16')  # from meter to millimeter
                 Image.fromarray(pred).save(pred_path)
+
+                # save predicted depth for visualization
+                pred_viz_path = os.path.join(args.save_dir, f"{impath}_viz.png")
+                pred_viz = np.clip(final / args.max_depth, 0.001, 1)
+                gt_viz = np.clip(gt / args.max_depth, 0.001, 1)
+                curr_depth_min = gt_viz.min() * 0.75  # for better viz
+                curr_depth_max = gt_viz.max() * 1.25  # for better viz
+                # print(valid_mask.shape, valid_mask)
+                pred_viz[valid_mask.astype(np.int) == 0] = curr_depth_min  # for invalid region
+                plt.imsave(pred_viz_path, pred_viz, vmin=curr_depth_min, vmax=curr_depth_max)
 
             if 'has_valid_depth' in batch:
                 if not batch['has_valid_depth']:
                     # print("Invalid ground truth")
                     total_invalid += 1
                     continue
-
-            gt = gt.squeeze().cpu().numpy()
-            valid_mask = np.logical_and(gt > args.min_depth, gt < args.max_depth)
 
             if args.garg_crop or args.eigen_crop:
                 gt_height, gt_width = gt.shape
@@ -196,7 +214,7 @@ if __name__ == '__main__':
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
     parser.add_argument('--do_kb_crop', help='Use kitti benchmark cropping', action='store_true')
 
-    if sys.argv.__len__() == 2:
+    if sys.argv.__len__() == 2:  # update args with args file
         arg_filename_with_prefix = '@' + sys.argv[1]
         args = parser.parse_args([arg_filename_with_prefix])
     else:
@@ -206,10 +224,10 @@ if __name__ == '__main__':
     args.gpu = int(args.gpu) if args.gpu is not None else 0
     args.distributed = False
     device = torch.device('cuda:{}'.format(args.gpu))
-    test = DepthDataLoader(args, 'online_eval').data
+    test_loader = DepthDataLoader(args, 'online_eval').data
     model = UnetAdaptiveBins.build(n_bins=args.n_bins, min_val=args.min_depth, max_val=args.max_depth,
                                    norm='linear').to(device)
     model = model_io.load_checkpoint(args.checkpoint_path, model)[0]
     model = model.eval()
 
-    eval(model, test, args, gpus=[device])
+    eval(model, test_loader, args, gpus=[device])

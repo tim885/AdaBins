@@ -40,7 +40,7 @@ class DepthDataLoader(object):
                                    pin_memory=True,
                                    sampler=self.train_sampler)
 
-        elif mode == 'online_eval':
+        elif mode == 'online_eval':  # validation during training
             self.testing_samples = DataLoadPreprocess(args, mode, transform=preprocessing_transforms(mode))
             if args.distributed:  # redundant. here only for readability and to be more explicit
                 # Give whole test set to all processes (and perform/report evaluation only on one) regardless
@@ -90,20 +90,21 @@ class DataLoadPreprocess(Dataset):
             if self.args.dataset == 'kitti' and self.args.use_right is True and random.random() > 0.5:
                 image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[3]))
                 depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[4]))
-            else:  # nyuv2
-                # image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[0]))
-                # depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[1]))
+            else:
+                # fit file paths in BTS NYUDv2 dir
+                image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[0]))
+                depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[1]))
 
-                # fit file paths in my file dir
-                scene_n = '{}_out'.format(sample_path.split()[0].split('/')[1])
-                sample_id = int(sample_path.split()[0].split('/')[2].replace('rgb_', '').replace('.jpg', '')) + 1
-                image_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.jpg'.format(sample_id))
-                depth_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.png'.format(sample_id))
+                # fit file paths in DenseDepth NYUDv2 dir
+                # scene_n = '{}_out'.format(sample_path.split()[0].split('/')[1])
+                # sample_id = int(sample_path.split()[0].split('/')[2].replace('rgb_', '').replace('.jpg', '')) + 1
+                # image_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.jpg'.format(sample_id))
+                # depth_path = os.path.join(self.args.data_path, 'nyu2_train', scene_n, '{}.png'.format(sample_id))
 
             image = Image.open(image_path)
             depth_gt = Image.open(depth_path)
 
-            if self.args.do_kb_crop is True:
+            if self.args.do_kb_crop is True:  # kitti benchmark crop
                 height = image.height
                 width = image.width
                 top_margin = int(height - 352)
@@ -126,7 +127,7 @@ class DataLoadPreprocess(Dataset):
             depth_gt = np.expand_dims(depth_gt, axis=2)
 
             if self.args.dataset == 'nyu':
-                depth_gt = depth_gt / 1000.0
+                depth_gt = depth_gt / 1000.0  # unit: cm => m
             else:
                 depth_gt = depth_gt / 256.0
 
@@ -158,11 +159,11 @@ class DataLoadPreprocess(Dataset):
                     depth_gt = np.asarray(depth_gt, dtype=np.float32)
                     depth_gt = np.expand_dims(depth_gt, axis=2)
                     if self.args.dataset == 'nyu':
-                        depth_gt = depth_gt / 1000.0
+                        depth_gt = depth_gt / 1000.0  # unit: cm => m
                     else:
                         depth_gt = depth_gt / 256.0
 
-            if self.args.do_kb_crop is True:
+            if self.args.do_kb_crop is True:  # kitti benchmark crop
                 height = image.shape[0]
                 width = image.shape[1]
                 top_margin = int(height - 352)
