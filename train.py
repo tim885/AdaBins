@@ -23,7 +23,7 @@ from utils import RunningAverage, colorize
 
 # os.environ['WANDB_MODE'] = 'dryrun'
 PROJECT = "MDE-AdaBins"
-logging = False  # default: True
+logging = True  # default: True
 
 
 def is_rank_zero(args):
@@ -66,6 +66,12 @@ def log_images(img, depth, pred, args, step):
 
 
 def main_worker(gpu, ngpus_per_node, args):
+    """
+    Args:
+        gpu (int): index of gpu to use
+        ngpus_per_node (int): number of gpus in one node
+        args: arguments for training
+    """
     args.gpu = gpu
 
     ###################################### Load model ##############################################
@@ -86,10 +92,10 @@ def main_worker(gpu, ngpus_per_node, args):
         args.rank = args.rank * ngpus_per_node + gpu
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
-        args.batch_size = int(args.batch_size / ngpus_per_node)
-        # args.batch_size = 8
+        args.batch_size = int(args.batch_size / ngpus_per_node)  # batch size on each gpu
         args.workers = int((args.num_workers + ngpus_per_node - 1) / ngpus_per_node)
-        print(args.gpu, args.rank, args.batch_size, args.workers)
+        print('[INFO] Worker GPU index: {}, node rank: {}, batch size per GPU: {}, worker number: {}'
+              .format(args.gpu, args.rank, args.batch_size, args.workers))
         torch.cuda.set_device(args.gpu)
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = model.cuda(args.gpu)
@@ -97,7 +103,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                                           find_unused_parameters=True)
 
     elif args.gpu is None:
-        # Use DP
+        # Use DataParallel
         args.multigpu = True
         model = model.cuda()
         model = torch.nn.DataParallel(model)
@@ -115,7 +121,7 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     ###################################### Logging setup #########################################
-    print(f"Training {experiment_name}")
+    print(f"Training experiment: {experiment_name}")
 
     run_id = f"{dt.now().strftime('%d-%h_%H-%M')}-nodebs{args.bs}-tep{epochs}-lr{lr}-wd{args.wd}-{uuid.uuid4()}"
     name = f"{experiment_name}_{run_id}"  # saved model name
@@ -159,9 +165,11 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
     best_loss = np.inf
 
     ###################################### Scheduler ###############################################
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, lr, epochs=epochs, steps_per_epoch=len(train_loader),
+    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, lr, epochs=epochs,
+                                              steps_per_epoch=len(train_loader),
                                               cycle_momentum=True,
-                                              base_momentum=0.85, max_momentum=0.95, last_epoch=args.last_epoch,
+                                              base_momentum=0.85, max_momentum=0.95,
+                                              last_epoch=args.last_epoch,
                                               div_factor=args.div_factor,
                                               final_div_factor=args.final_div_factor)
     if args.resume != '' and scheduler is not None:
@@ -212,7 +220,6 @@ def train(model, args, epochs=10, experiment_name="DeepLab", lr=0.0001, root="."
                 model.eval()
                 metrics, val_si = validate(args, model, test_loader, criterion_ueff, epoch, epochs, device)
 
-                # print("Validated: {}".format(metrics))
                 if should_log:
                     wandb.log({
                         f"Test/{criterion_ueff.name}": val_si.get_value(),
@@ -303,7 +310,7 @@ if __name__ == '__main__':
     parser.add_argument('--n-bins', '--n_bins', default=80, type=int,
                         help='number of bins/buckets to divide depth range into')
     parser.add_argument('--lr', '--learning-rate', default=0.000357, type=float, help='max learning rate')
-    parser.add_argument('--wd', '--weight-decay', default=0.1, type=float, help='weight decay')
+    parser.add_argument('--wd', '--weight-decay', default=0.1, type=float, help='weight decay of ADAMW optimizer')
     parser.add_argument('--w_chamfer', '--w-chamfer', default=0.1, type=float, help="weight value for chamfer loss")
     parser.add_argument('--div-factor', '--div_factor', default=25, type=float, help="Initial div factor for lr")
     parser.add_argument('--final-div-factor', '--final_div_factor', default=100, type=float,
@@ -311,13 +318,13 @@ if __name__ == '__main__':
 
     parser.add_argument('--bs', default=4, type=int, help='batch size')  # default is 16
     parser.add_argument('--validate-every', '--validate_every', default=6058, type=int, help='validate every n batches')
-    parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use')
-    parser.add_argument("--name", default="UnetAdaptiveBins")
+    parser.add_argument('--gpu', default=None, type=int, help='Which gpu to use (single gpu mode)')
+    parser.add_argument("--name", default="UnetAdaptiveBins", help='Experiment name')
     parser.add_argument("--norm", default="linear", type=str, help="Type of norm/competition for bin-widths",
                         choices=['linear', 'softmax', 'sigmoid'])
     parser.add_argument("--same-lr", '--same_lr', default=False, action="store_true",
                         help="Use same LR for all param groups")
-    parser.add_argument("--distributed", default=True, action="store_true", help="Use DDP if set")
+    parser.add_argument("--distributed", default=True, action="store_true", help="Use pytorch DistributedDataParallel")
     parser.add_argument("--root", default=".", type=str,
                         help="Root folder to save data in")
     parser.add_argument("--resume", default='', type=str, help="Resume from checkpoint")
@@ -339,11 +346,11 @@ if __name__ == '__main__':
 
     parser.add_argument('--input_height', type=int, help='input height', default=416)
     parser.add_argument('--input_width', type=int, help='input width', default=544)
-    parser.add_argument('--max_depth', type=float, help='maximum depth in estimation', default=10)
-    parser.add_argument('--min_depth', type=float, help='minimum depth in estimation', default=1e-3)
+    parser.add_argument('--max_depth', type=float, help='maximum depth (unit: meter) in estimation', default=10)
+    parser.add_argument('--min_depth', type=float, help='minimum depth (unit: meter) in estimation', default=1e-3)
 
     parser.add_argument('--do_random_rotate', default=True,
-                        help='if set, will perform random rotation for augmentation',
+                        help='if set, will perform image random rotation for augmentation',
                         action='store_true')
     parser.add_argument('--degree', type=float, help='random rotation maximum degree', default=2.5)
     parser.add_argument('--do_kb_crop', help='if set, crop input images as kitti benchmark images', action='store_true')
@@ -359,16 +366,16 @@ if __name__ == '__main__':
                         default="./train_test_inputs/nyudepthv2_test_files_with_gt.txt",
                         type=str, help='path to the filenames text file for online evaluation')
 
-    parser.add_argument('--min_depth_eval', type=float, help='minimum depth for evaluation', default=1e-3)
-    parser.add_argument('--max_depth_eval', type=float, help='maximum depth for evaluation', default=10)
+    parser.add_argument('--min_depth_eval', type=float, help='minimum depth (unit: meter) for evaluation', default=1e-3)
+    parser.add_argument('--max_depth_eval', type=float, help='maximum depth (unit: meter) for evaluation', default=10)
     parser.add_argument('--eigen_crop', default=True, help='if set, crops according to Eigen NIPS14',
                         action='store_true')
     parser.add_argument('--garg_crop', help='if set, crops according to Garg  ECCV16', action='store_true')
 
-    if sys.argv.__len__() == 2:
+    if sys.argv.__len__() == 2:  # use args file
         arg_filename_with_prefix = '@' + sys.argv[1]
         args = parser.parse_args([arg_filename_with_prefix])
-    else:
+    else:  # use default args
         args = parser.parse_args()
 
     args.batch_size = args.bs
@@ -380,24 +387,23 @@ if __name__ == '__main__':
 
     try:
         node_str = os.environ['SLURM_JOB_NODELIST'].replace('[', '').replace(']', '')
-        nodes = node_str.split(',')
+        nodes = node_str.split(',')  # computation nodes
 
         args.world_size = len(nodes)
         args.rank = int(os.environ['SLURM_PROCID'])
-
     except KeyError as e:
         # We are NOT using SLURM
         args.world_size = 1
         args.rank = 0
         nodes = ["127.0.0.1"]
 
-    if args.distributed:
-        mp.set_start_method('forkserver')
+    if args.distributed:  # distributed training
+        mp.set_start_method('forkserver')  # torch multiprocessing
 
-        print(args.rank)
+        print('Distributed training nodes rank: {}'.format(args.rank))
         port = np.random.randint(15000, 15025)
         args.dist_url = 'tcp://{}:{}'.format(nodes[0], port)
-        print(args.dist_url)
+        print('Distributed training node 0 {}'.format(args.dist_url))
         args.dist_backend = 'nccl'
         args.gpu = None
 
@@ -405,10 +411,10 @@ if __name__ == '__main__':
     args.num_workers = args.workers
     args.ngpus_per_node = ngpus_per_node
 
-    if args.distributed:
-        args.world_size = ngpus_per_node * args.world_size
+    if args.distributed:  # multiple gpu mode
+        args.world_size = ngpus_per_node * args.world_size  # num of all gpus
         mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
-    else:
+    else:  # single gpu mode
         if ngpus_per_node == 1:
             args.gpu = 0
         main_worker(args.gpu, ngpus_per_node, args)

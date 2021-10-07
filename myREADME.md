@@ -20,17 +20,20 @@ Official implementation of [Adabins: Depth Estimation using adaptive bins](https
 - scipy
 - wandb (for logging, optional) 
 
-**N.B.** 
-- wandb needs an account and log in before using: https://wandb.ai/site 
-
+### Wandb (weights and bias)
+Web-based MLOps tool. Wandb needs an account before using: https://wandb.ai/site. Then run `wandb login` in shell 
+to log in.
+**P.S.** Do not stop code running in wandb web GUI, this may cause unreleased GPU memeory. 
 
 ### Data preparation
 - The data preparation of NYUDv2 dataset is same as [BTS](https://github.com/cogaplex-bts/bts).  
 
 ## Train
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python train.py 
+# train model on nyudv2 dataset
+CUDA_VISIBLE_DEVICES=0,1 python train.py args_train_nyu.txt 
 ```
+Logging by wandb (project and current run) will be displayed in the wwandb weibsite.  
 
 ## Inference
 Move the downloaded weights to a directory of your choice (we will use "./pretrained/" here). 
