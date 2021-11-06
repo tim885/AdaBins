@@ -94,7 +94,7 @@ infer_helper.predict_dir("/path/to/input/dir/containing_only_images/", "path/to/
 
 ## Evaluation
 ```bash
-python evaluate.py args_test_nyu.txt --gpu 1
+CUDA_VISIBLE_DEVICES=0 python evaluate.py args_test_nyu.txt
 ```
 
 ## TODO:

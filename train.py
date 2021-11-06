@@ -67,6 +67,7 @@ def log_images(img, depth, pred, args, step):
 
 def main_worker(gpu, ngpus_per_node, args):
     """
+    main worker working on a node for DistributedDataParallel
     Args:
         gpu (int): index of gpu to use
         ngpus_per_node (int): number of gpus in one node
@@ -89,15 +90,15 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.distributed:
         # Use DDP
         args.multigpu = True
-        args.rank = args.rank * ngpus_per_node + gpu
+        args.rank = args.rank * ngpus_per_node + gpu  # gpu rank
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
         args.batch_size = int(args.batch_size / ngpus_per_node)  # batch size on each gpu
         args.workers = int((args.num_workers + ngpus_per_node - 1) / ngpus_per_node)
         print('[INFO] Worker GPU index: {}, node rank: {}, batch size per GPU: {}, worker number: {}'
               .format(args.gpu, args.rank, args.batch_size, args.workers))
-        torch.cuda.set_device(args.gpu)
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        torch.cuda.set_device(args.gpu)  # each process needs to work on a single GPU when running in a host
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)  # syn batch norm
         model = model.cuda(args.gpu)
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], output_device=args.gpu,
                                                           find_unused_parameters=True)
@@ -385,24 +386,25 @@ if __name__ == '__main__':
     if args.root != "." and not os.path.isdir(args.root):
         os.makedirs(args.root)
 
-    try:
+    try:  # SLURM workload manager
         node_str = os.environ['SLURM_JOB_NODELIST'].replace('[', '').replace(']', '')
         nodes = node_str.split(',')  # computation nodes
 
         args.world_size = len(nodes)
-        args.rank = int(os.environ['SLURM_PROCID'])
+        args.rank = int(os.environ['SLURM_PROCID'])  # node rank
     except KeyError as e:
         # We are NOT using SLURM
         args.world_size = 1
-        args.rank = 0
-        nodes = ["127.0.0.1"]
+        args.rank = 0  # node rank
+        nodes = ["127.0.0.1"]  # local machine
+    print('Nodes are {}'.format(nodes))
 
     if args.distributed:  # distributed training
         mp.set_start_method('forkserver')  # torch multiprocessing
 
         print('Distributed training nodes rank: {}'.format(args.rank))
         port = np.random.randint(15000, 15025)
-        args.dist_url = 'tcp://{}:{}'.format(nodes[0], port)
+        args.dist_url = 'tcp://{}:{}'.format(nodes[0], port)  # node url
         print('Distributed training node 0 {}'.format(args.dist_url))
         args.dist_backend = 'nccl'
         args.gpu = None
@@ -411,8 +413,8 @@ if __name__ == '__main__':
     args.num_workers = args.workers
     args.ngpus_per_node = ngpus_per_node
 
-    if args.distributed:  # multiple gpu mode
-        args.world_size = ngpus_per_node * args.world_size  # num of all gpus
+    if args.distributed:  # spawn up multiple processes on gpus in one node
+        args.world_size = ngpus_per_node * args.world_size  # num of process participating the job
         mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
     else:  # single gpu mode
         if ngpus_per_node == 1:

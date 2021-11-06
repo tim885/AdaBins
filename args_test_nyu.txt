@@ -6,7 +6,7 @@
 --max_depth 10.
 --min_depth 1e-3
 
---checkpoint_path ./pretrained/AdaBins_nyu.pt
+--checkpoint_path ./checkpoints/UnetAdaptiveBins_01-Oct_17-21-nodebs2-tep25-lr0.000357-wd0.1-3ac98c01-3887-44d2-9db8-869a3103bd23_best.pt
 --data_path_eval ../Dataset/nyu_depth_v2/official_splits/test/
 --gt_path_eval ../Dataset/nyu_depth_v2/official_splits/test/
 --filenames_file_eval ./train_test_inputs/nyudepthv2_test_files_with_gt.txt
